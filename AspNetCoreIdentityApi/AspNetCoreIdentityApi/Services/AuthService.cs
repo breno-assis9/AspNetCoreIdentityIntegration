@@ -20,7 +20,7 @@ namespace AspNetCoreIdentityApi.Services
 
         public async Task<string> GenerateJwtTokenAsync(ApplicationUser user)
         {
-            var claims = new[]
+            var claims = new List<Claim>
             {
                 new Claim(ClaimTypes.Name, user.UserName),
                 new Claim(ClaimTypes.Email, user.Email),
@@ -29,7 +29,8 @@ namespace AspNetCoreIdentityApi.Services
 
             if (await _userManager.IsInRoleAsync(user, "Admin"))
             {
-
+                claims.Add(new Claim("Permission", "ViewDashboard"));
+                claims.Add(new Claim("Permission", "EditContent"));
             }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]));
