@@ -1,4 +1,5 @@
 using AspNetCoreIdentityApi.Data;
+using AspNetCoreIdentityApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -6,6 +7,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddScoped<IAuthService, AuthService>();
 
 // Configuração do banco de dados
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -38,7 +41,41 @@ builder.Services.AddAuthentication(options =>
     };
 });
 
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new Microsoft.OpenApi.Models.OpenApiInfo
+    {
+        Title = "ASP.NET Core Identity API",
+        Version = "v1",
+        Description = "API para autenticação e autorização com JWT e Identity."
+    });
+
+    // Opcional: Adiciona segurança no Swagger (autenticação JWT)
+    options.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.ApiKey,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        Description = "Insira o token JWT no formato 'Bearer {token}'"
+    });
+
+    options.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            new string[] {}
+        }
+    });
+});
 
 builder.Services.AddControllers();
 
@@ -51,11 +88,16 @@ using (var scope = app.Services.CreateScope())
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-    await CreateRoles(roleManager, userManager);
+    await CreateRolesAsync(roleManager, userManager);
 }
 
+
 app.UseSwagger();
-app.UseSwaggerUI();
+app.UseSwaggerUI(options =>
+{
+    options.SwaggerEndpoint("/swagger/v1/swagger.json", "ASP.NET Core Identity API v1");
+    options.RoutePrefix = string.Empty; // Define que o Swagger estará disponível na raiz do aplicativo
+});
 
 // Configuração do pipeline HTTP
 app.UseAuthentication();
@@ -65,23 +107,22 @@ app.MapControllers();
 
 app.Run();
 
-static async Task CreateRoles(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
+// Método para criar roles
+static async Task CreateRolesAsync(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {
-    // Criando a role "Admin"
+    // Criar role Admin se não existir
     if (!await roleManager.RoleExistsAsync("Admin"))
     {
-        var role = new IdentityRole("Admin");
-        await roleManager.CreateAsync(role);
+        await roleManager.CreateAsync(new IdentityRole("Admin"));
     }
 
-    // Criando a role "User"
+    // Criar role User se não existir
     if (!await roleManager.RoleExistsAsync("User"))
     {
-        var role = new IdentityRole("User");
-        await roleManager.CreateAsync(role);
+        await roleManager.CreateAsync(new IdentityRole("User"));
     }
 
-    // Criando um usuário Admin se não existir
+    // Criar usuário Admin se não existir
     var adminUser = await userManager.FindByEmailAsync("admin@admin.com");
     if (adminUser == null)
     {
@@ -90,11 +131,11 @@ static async Task CreateRoles(RoleManager<IdentityRole> roleManager, UserManager
             UserName = "admin@admin.com",
             Email = "admin@admin.com"
         };
-        var createUserResult = await userManager.CreateAsync(user, "Password123!");
 
-        if (createUserResult.Succeeded)
+        var createResult = await userManager.CreateAsync(user, "Password123!");
+        if (createResult.Succeeded)
         {
-            await userManager.AddToRoleAsync(user, "Admin");
+            await userManager.AddToRoleAsync(user, "Admin"); // Atribuindo role "Admin"
         }
     }
 }
