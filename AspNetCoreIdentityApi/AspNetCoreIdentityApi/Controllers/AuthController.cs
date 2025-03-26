@@ -36,6 +36,13 @@ namespace AspNetCoreIdentityApi.Controllers
                 return BadRequest(result.Errors);
             }
 
+            // Atribuindo role de "User" ao novo usuário
+            var roleResult = await _userManager.AddToRoleAsync(user, "User");
+            if (!roleResult.Succeeded)
+            {
+                return BadRequest(roleResult.Errors);
+            }
+
             return Ok(new { Message = "User registered successfully" });
         }
 
